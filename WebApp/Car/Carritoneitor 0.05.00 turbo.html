@@ -1,0 +1,167 @@
+<h3>[Movimiento = Izquierda/Derecha] (Turbo = Arriba] [Disparar = Espacio]</h3>
+
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { margin:0; overflow:hidden; background:#333; }
+    #game { position:relative; width:400px; height:550px; margin:auto; background:#555; }
+    .car { position:absolute; bottom:20px; left:180px; width:30px; height:60px; background:blue; }
+    .obstacle, .coin, .rocketCoin, .bullet { position:absolute; width:40px; height:40px; }
+    .obstacle { background:black; }
+    .coin { background:gold; border-radius:50%; }
+    .rocketCoin { background:green; border-radius:50%; }
+    .bullet { background:orange; width:15px; height:30px; }
+    #hud { color:white; font-family:sans-serif; text-align:center; margin:10px; }
+    #gameover {
+      position:absolute; top:0; left:0; width:100%; height:100%;
+      background:rgba(0,0,0,0.8); color:white; display:none;
+      justify-content:center; align-items:center; flex-direction:column;
+      font-family:sans-serif; font-size:24px;
+    }
+    #gameover button { margin-top:20px; padding:10px 20px; font-size:18px; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    Distancia: <span id="dist">0</span> | 
+    Monedas: <span id="coins">0</span> | 
+    Rocket: <span id="rockets">0</span> | 
+    Choques: <span id="hits">0</span>
+  </div>
+  <div id="game">
+    <div class="car" id="car"></div>
+    <div id="gameover">
+      <div>¡Game Over!</div>
+      <button onclick="resetGame()">Reiniciar</button>
+    </div>
+  </div>
+
+  <!-- 🎵 Sonidos -->
+  <audio id="coinSound" src="coin.mp3"></audio>
+  <audio id="hitSound" src="hit.mp3"></audio>
+  <audio id="gameOverSound" src="gameover.mp3"></audio>
+  <audio id="shootSound" src="shoot.mp3"></audio>
+  <audio id="explodeSound" src="explode.mp3"></audio>
+
+<script>
+const game = document.getElementById("game");
+const car = document.getElementById("car");
+const gameoverScreen = document.getElementById("gameover");
+let carX = 180;
+let speed = 3;
+let turbo = false;
+let distance = 0, coins = 0, hits = 0, rockets = 0;
+let running = true;
+
+document.addEventListener("keydown", e => {
+  if(!running) return;
+  if(e.key === "ArrowLeft") carX -= 40;
+  if(e.key === "ArrowRight") carX += 40;
+  if(e.key === "ArrowUp") turbo = true;
+  if(e.key === " "){ shootRocket(); }
+});
+document.addEventListener("keyup", e => {
+  if(e.key === "ArrowUp") turbo = false;
+});
+
+function spawn(type){
+  let el = document.createElement("div");
+  el.className = type;
+  el.style.left = Math.floor(Math.random()*370)+"px";
+  el.style.top = "0px";
+  game.appendChild(el);
+}
+
+function resetGame(){
+  distance = 0; coins = 0; hits = 0; rockets = 0;
+  document.getElementById("dist").textContent = distance;
+  document.getElementById("coins").textContent = coins;
+  document.getElementById("hits").textContent = hits;
+  document.getElementById("rockets").textContent = rockets;
+  document.querySelectorAll(".obstacle, .coin, .rocketCoin, .bullet").forEach(o=>o.remove());
+  carX = 180;
+  gameoverScreen.style.display = "none";
+  running = true;
+  update();
+}
+
+function gameOver(){
+  running = false;
+  gameoverScreen.style.display = "flex";
+  document.getElementById("gameOverSound").play();
+}
+
+function shootRocket(){
+  if(rockets>0){
+    rockets--;
+    document.getElementById("rockets").textContent = rockets;
+    let bullet = document.createElement("div");
+    bullet.className = "bullet";
+    bullet.style.left = (carX+15)+"px";
+    bullet.style.top = (car.offsetTop-20)+"px";
+    game.appendChild(bullet);
+    document.getElementById("shootSound").play();
+  }
+}
+
+function update(){
+  if(!running) return;
+  car.style.left = carX+"px";
+  distance += turbo ? 2 : 1;
+  document.getElementById("dist").textContent = distance;
+
+  let objs = document.querySelectorAll(".obstacle, .coin, .rocketCoin, .bullet");
+  objs.forEach(o=>{
+    let y = parseInt(o.style.top);
+    if(o.className==="bullet"){ 
+      y -= 6; 
+      o.style.top = y+"px";
+      if(y<0) o.remove();
+      // Colisión con obstáculos
+      document.querySelectorAll(".obstacle").forEach(ob=>{
+        if(o.offsetLeft < ob.offsetLeft+30 && o.offsetLeft+10 > ob.offsetLeft &&
+           o.offsetTop < ob.offsetTop+30 && o.offsetTop+20 > ob.offsetTop){
+           ob.remove(); o.remove();
+           document.getElementById("explodeSound").play();
+        }
+      });
+    } else {
+      y += turbo ? speed*3 : speed;
+      o.style.top = y+"px";
+      if(y>600) o.remove();
+      // Colisión con carrito
+      let cx = car.offsetLeft, cy = car.offsetTop;
+      if(cx < o.offsetLeft+30 && cx+40 > o.offsetLeft &&
+         cy < o.offsetTop+30 && cy+60 > o.offsetTop){
+         if(o.className==="coin"){ 
+           o.remove(); coins++; 
+           document.getElementById("coins").textContent = coins;
+           document.getElementById("coinSound").play();
+         }
+         else if(o.className==="rocketCoin"){
+           o.remove(); rockets++; 
+           document.getElementById("rockets").textContent = rockets;
+           document.getElementById("coinSound").play();
+         }
+         else if(o.className==="obstacle"){ 
+           o.remove(); hits++; 
+           document.getElementById("hits").textContent = hits;
+           document.getElementById("hitSound").play();
+           if(carX < 200) carX = 320; else carX = 20;
+           if(hits>=3){ gameOver(); }
+         }
+      }
+    }
+  });
+  if(Math.random()<0.02) spawn("obstacle");
+  if(Math.random()<0.01){
+    if(Math.random()<0.9) spawn("rocketCoin"); else spawn("coin");
+  }
+  requestAnimationFrame(update);
+}
+update();
+</script>
+</body>
+</html>
+
