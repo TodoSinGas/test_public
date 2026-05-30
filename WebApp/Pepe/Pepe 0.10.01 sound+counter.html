@@ -1,0 +1,267 @@
+<canvas id="game" width="500" height="300"></canvas>
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let player = { x: 50, y: 250, w: 20, h: 20, vy: 0, vx: 0 };
+let gravity = 0.3, jumpPower = -8, speed = 4;
+let keys = {}, cameraX = 0, score = 0, coins = 0;
+let gameOver = false, jumpCount = 0, level = 1;
+let touchedPlatforms = new Set(), platformId = 0;
+let platforms = [{id: platformId++, x:0,y:280,w:250,h:20}];
+let coinObjects = [], enemies = [];
+let creditsMode = false, creditsY = canvas.height;
+
+// cuenta regresiva level4
+let countdownActive = false;
+let countdownValue = 3;
+let countdownStart = 0;
+
+// sonidos
+let sndJump = new Audio("jump.mp3");
+let sndLevelUp = new Audio("levelup.mp3");
+let sndCoin = new Audio("coin.mp3");
+let sndEnemy = new Audio("enemy.mp3");
+let sndGameOver = new Audio("gameover.mp3");
+
+// pantalla de nivel
+let levelUpScreen = false;
+let levelUpMessage = "";
+let levelUpTimer = 0;
+const motivationalPhrases = [
+  "Nunca te rindas",
+  "Cada salto te acerca a la meta",
+  "La perseverancia vence obstáculos",
+  "El esfuerzo trae recompensa",
+  "Confía en tu habilidad"
+];
+
+// contador de toques con enemigos
+let enemyHits = 0;
+
+document.addEventListener("keydown", e => {
+  if ((gameOver || creditsMode) && e.code === "Enter") restart();
+  if (e.code === "Space" && jumpCount < 3) {
+    player.vy = jumpPower; jumpCount++;
+    sndJump.play(); // sonido de salto
+  }
+  keys[e.code] = true;
+});
+document.addEventListener("keyup", e => keys[e.code] = false);
+
+let platformScale = 1; // multiplicador global
+
+function generatePlatforms() {
+  let lastPlatform = platforms[platforms.length-1];
+  if (lastPlatform.x + lastPlatform.w - cameraX < canvas.width) {
+    let newX = lastPlatform.x + 150 + Math.random()*100;
+    let newY = 200 + Math.random()*80;
+    let newPlat = {id: platformId++, x:newX, y:newY, w:100 * platformScale, h:10};
+    platforms.push(newPlat);
+
+
+    // monedas desde nivel 2
+    if (level>=2 && Math.random()<0.5) {
+      coinObjects.push({x:newX+40, y:newY-20, r:16, collected:false, platformId:newPlat.id});
+    }
+    // enemigos desde nivel 3
+    if (level>=3 && Math.random()<0.3) {
+      enemies.push({x:newX+20,y:newY-20,w:20,h:20,vx:1,minX:newX,maxX:newX+80,platformId:newPlat.id});
+    }
+  }
+  platforms = platforms.filter(p => p.x + p.w > cameraX - 100);
+  coinObjects = coinObjects.filter(c => c.x > cameraX - 100);
+  enemies = enemies.filter(e => e.x > cameraX - 100);
+}
+
+function update() {
+  if (gameOver || creditsMode) return;
+  if (levelUpScreen) {
+    // pausa de 3 segundos
+    if (Date.now()-levelUpTimer > 3000) levelUpScreen=false;
+    return;
+  }
+if (countdownActive) {
+  let elapsed = Math.floor((Date.now() - countdownStart) / 1000);
+  countdownValue = 3 - elapsed;
+  if (countdownValue <= 0) {
+    countdownActive = false; // termina la cuenta regresiva
+  }
+}
+
+  player.vx = (keys["ArrowLeft"]?-speed:0) + (keys["ArrowRight"]?speed:0);
+  player.x += player.vx;
+  player.vy += gravity; player.y += player.vy;
+
+  // colisiones plataformas
+  platforms.forEach(p => {
+    if (player.x < p.x+p.w && player.x+player.w > p.x &&
+        player.y+player.h > p.y && player.y+player.h < p.y+10 &&
+        player.vy >= 0) {
+      player.y = p.y - player.h; player.vy = 0; jumpCount = 0;
+      if (!touchedPlatforms.has(p.id)) { score++; touchedPlatforms.add(p.id); }
+      if (level===4 && !p.breakTimer) p.breakTimer = Date.now();
+    }
+    if (level===4 && p.breakTimer && Date.now()-p.breakTimer>3000) {
+      platforms = platforms.filter(pl=>pl.id!==p.id);
+    }
+if (level === 4 && !p.breakTimer) {
+  p.breakTimer = Date.now();
+  countdownActive = true;
+  countdownValue = 3;
+  countdownStart = Date.now();
+}
+  });
+
+  // enemigos
+  enemies.forEach(e=>{
+    if (e.falling) {
+      e.y += 5;
+      if (e.y > canvas.height) e.remove = true;
+    } else {
+      e.x += e.vx;
+      if (e.x<e.minX||e.x>e.maxX) e.vx*=-1;
+      if (player.x<e.x+e.w && player.x+player.w>e.x &&
+          player.y<e.y+e.h && player.y+player.h>e.y) {
+        enemyHits++;
+        sndEnemy.play(); // sonido de choque
+        if (enemyHits===1) {
+          // primer toque: jugador se reduce 50%
+          player.w = player.w/2; player.h = player.h/2;
+        } else if (enemyHits===2) {
+          // segundo toque: reducir plataforma actual
+          platforms.forEach(p=>{
+            if (player.y+player.h===p.y) p.w = p.w/2;
+          });
+        } else {
+          gameOver=true;
+          sndGameOver.play(); // sonido de game over
+        }
+      }
+    }
+  });
+  enemies = enemies.filter(e=>!e.remove);
+
+  // monedas
+  coinObjects.forEach(c=>{
+    if (!c.collected && player.x< c.x+10 && player.x+player.w>c.x-10 &&
+        player.y< c.y+10 && player.y+player.h>c.y-10) {
+      c.collected=true; coins++;
+      sndCoin.play(); // sonido de moneda
+      // enemigos caen en nivel 3 y 4
+      if (level===3 || level===4) {
+        enemies.forEach(e=>{
+          if (e.platformId===c.platformId) e.falling=true;
+        });
+      }
+      // al acumular 5 monedas, plataformas +0% largas
+      if (coins%3===0) {
+        platformScale *= 1.1; // aumenta el multiplicador
+        platforms.forEach(p=>p.w = p.w*1.0);
+      }
+    }
+  });
+
+  cameraX = Math.max(0, player.x - canvas.width/2);
+
+  // cambio de nivel cada 5 puntos
+  let newLevel = Math.floor(score/5)+1;
+  if (newLevel !== level && newLevel <= 5) {
+    level = newLevel;
+    levelUpScreen = true;
+    levelUpMessage = motivationalPhrases[Math.floor(Math.random()*motivationalPhrases.length)];
+    levelUpTimer = Date.now();
+    sndLevelUp.currentTime = 0;
+    sndLevelUp.play();       // 🔊 reproducir subida de nivel
+  }
+
+  // fin del juego por caida
+if (player.y > canvas.height) {
+  gameOver = true;
+  sndGameOver.currentTime = 0; // reinicia el sonido
+  sndGameOver.play();          // 🔊 reproducir Game Over
+}
+
+
+  // fin del juego con créditos
+  if (score>=25) { creditsMode=true; }
+  if (player.y>canvas.height) gameOver=true;
+
+  generatePlatforms();
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if (level===5) ctx.filter="invert(1)"; else ctx.filter="none";
+
+if (countdownActive) {
+  ctx.fillStyle = "red";
+  ctx.font = "40px Arial";
+  ctx.fillText(countdownValue, canvas.width/2, 50);
+}
+
+  // plataformas
+  ctx.fillStyle=(level===1?"green":level===2?"purple":level===3?"brown":level===4?"orange":"white");
+  platforms.forEach(p=>ctx.fillRect(p.x-cameraX,p.y,p.w,p.h));
+
+  // monedas
+  ctx.fillStyle="gold";
+  coinObjects.forEach(c=>{ if(!c.collected){ ctx.beginPath(); ctx.arc(c.x-cameraX,c.y,8,0,Math.PI*2); ctx.fill(); }});
+
+  // enemigos
+  ctx.fillStyle="red";
+  enemies.forEach(e=>ctx.fillRect(e.x-cameraX,e.y,e.w,e.h));
+
+  // jugador
+  ctx.save();
+  ctx.translate(player.x-cameraX+player.w/2,player.y+player.h/2);
+  if (jumpCount===2) ctx.rotate(Math.PI/4);
+  else if (jumpCount===3) ctx.rotate(Math.PI/2);
+  ctx.fillStyle="blue"; ctx.fillRect(-player.w/2,-player.h/2,player.w,player.h);
+  ctx.restore();
+
+  // HUD
+  ctx.filter="none";
+  ctx.fillStyle="blue"; ctx.font="16px Arial";
+  ctx.fillText("Level:"+level,10,60);
+  ctx.fillText("Score:"+score,10,20);
+  ctx.fillText("Coins:"+coins,10,40);
+
+
+  // pantalla de nivel
+  if (levelUpScreen) {
+    ctx.fillStyle="orange";
+    ctx.font="24px Arial";
+    ctx.fillText("¡Felicidades, subiste de nivel!", 60, canvas.height/2);
+    ctx.font="18px Arial";
+    ctx.fillText(levelUpMessage, 100, canvas.height/2+40);
+  }
+
+  if (gameOver) { ctx.fillStyle="red"; ctx.font="30px Arial"; ctx.fillText("GAME OVER -ENTER-",150,150); }
+  if (creditsMode) {
+    ctx.fillStyle="Green"; ctx.font="20px Arial";
+    ctx.fillText("¡Felicitaciones! Juego completado",100,100);
+    ctx.font="16px Arial";
+    creditsY-=1;
+    ctx.fillText("Créditos: Yo merito",200,creditsY);
+    ctx.fillText("Diseño y programación: Yo merito",150,creditsY+40);
+    ctx.fillText("Gracias por jugar",170,creditsY+80);
+  }
+}
+
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+loop();
+
+function restart(){
+  player={x:50,y:250,w:20,h:20,vy:0,vx:0};
+  cameraX=0; score=0; coins=0; gameOver=false; jumpCount=0;
+  touchedPlatforms.clear(); platformId=0; level=1; creditsMode=false; creditsY=canvas.height;
+  platforms=[{id:platformId++,x:0,y:280,w:250,h:20}]; coinObjects=[]; enemies=[];
+  enemyHits = 0; // reinicia contador de golpes
+  platformScale = 1; // 🔹 reinicia el tamaño de plataformas
+}
+</script>
+
+<p> [Saltar = Espacio] [Moverse = Izquierda/Derecha] </p>
+<p> [Salto doble = Espacio x2]</p>
