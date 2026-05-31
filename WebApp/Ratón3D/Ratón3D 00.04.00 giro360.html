@@ -7,14 +7,14 @@
     body { margin: 0; overflow: hidden; }
     canvas { display: block; }
     #instrucciones {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
+      position: fixed;
+      top: 10px; left: 50%;
+      transform: translateX(-50%);
       background: rgba(0,0,0,0.7);
-      color: white; padding: 20px;
+      color: white; padding: 10px 20px;
       font-family: sans-serif;
       text-align: center;
-      cursor: pointer;
+      border-radius: 5px;
     }
   </style>
 </head>
@@ -35,16 +35,12 @@
     scene.add(light);
 
     // Suelo
-    const floorGeometry = new THREE.PlaneGeometry(20, 20);
-    const floorMaterial = new THREE.MeshPhongMaterial({color: 0xaaaaaa});
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshPhongMaterial({color: 0xaaaaaa}));
     floor.rotation.x = -Math.PI/2;
     scene.add(floor);
 
     // Queso
-    const cheeseGeometry = new THREE.BoxGeometry(1,1,1);
-    const cheeseMaterial = new THREE.MeshPhongMaterial({color: 0xffff00});
-    const cheese = new THREE.Mesh(cheeseGeometry, cheeseMaterial);
+    const cheese = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshPhongMaterial({color: 0xffff00}));
     cheese.position.set(8, 0.5, 8);
     scene.add(cheese);
 
@@ -60,7 +56,6 @@
       "1000000001",
       "1111111111"
     ];
-
     const walls = [];
     const wallMaterial = new THREE.MeshPhongMaterial({color: 0x333333});
     for (let z = 0; z < maze.length; z++) {
@@ -80,17 +75,19 @@
 
     // Activar pointer lock al hacer clic en el canvas
     renderer.domElement.addEventListener("click", () => {
-      instrucciones.style.display = "none"; // ocultar overlay
       controls.lock();
     });
 
+    controls.addEventListener("lock", () => {
+      instrucciones.style.display = "none";
+    });
     controls.addEventListener("unlock", () => {
-      instrucciones.style.display = ""; // mostrar overlay si se desbloquea
+      instrucciones.style.display = "";
     });
 
     camera.position.set(-8, 1.5, -8);
 
-    // Movimiento con teclas
+    // Movimiento
     const keys = {};
     document.addEventListener("keydown", (e) => keys[e.key] = true);
     document.addEventListener("keyup", (e) => keys[e.key] = false);
