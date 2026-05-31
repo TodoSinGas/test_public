@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Prueba FPS mínima</title>
+  <title>FPS mínimo</title>
   <style>
     body { margin: 0; overflow: hidden; }
     canvas { display: block; }
@@ -31,14 +31,10 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Luz y cubo de prueba
-    const light = new THREE.PointLight(0xffffff, 1, 100);
-    light.position.set(5, 10, 5);
-    scene.add(light);
-
+    // Cubo de prueba
     const cube = new THREE.Mesh(
       new THREE.BoxGeometry(2,2,2),
-      new THREE.MeshPhongMaterial({color: 0x00ff00})
+      new THREE.MeshBasicMaterial({color: 0x00ff00})
     );
     cube.position.set(0,1,-5);
     scene.add(cube);
@@ -47,20 +43,13 @@
     const controls = new PointerLockControls(camera, document.body);
     const instrucciones = document.getElementById("instrucciones");
 
-    renderer.domElement.addEventListener("click", () => {
-      controls.lock();
-    });
+    renderer.domElement.addEventListener("click", () => controls.lock());
 
-    controls.addEventListener("lock", () => {
-      instrucciones.style.display = "none";
-    });
-    controls.addEventListener("unlock", () => {
-      instrucciones.style.display = "";
-    });
+    controls.addEventListener("lock", () => instrucciones.style.display = "none");
+    controls.addEventListener("unlock", () => instrucciones.style.display = "");
 
     camera.position.set(0, 1.5, 5);
 
-    // Animación
     function animate() {
       requestAnimationFrame(animate);
       renderer.render(scene, camera);
