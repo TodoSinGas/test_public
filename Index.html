@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Laberinto del Ratón</title>
+  <style>
+    body { display: flex; justify-content: center; align-items: center; height: 100vh; background: #eee; }
+    canvas { border: 2px solid #333; background: #fff; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="600" height="500"></canvas>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const tileSize = 50; // 600/12 = 50, 500/10 = 50
+    const maze = [
+      [1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,1,0,0,0,0,0,0,1],
+      [1,0,1,0,1,0,1,1,0,1,0,1],
+      [1,0,1,0,0,0,0,1,0,1,0,1],
+      [1,0,1,1,1,1,0,1,0,1,0,1],
+      [1,0,0,0,0,1,0,1,0,1,0,1],
+      [1,1,1,1,0,1,0,1,0,1,0,1],
+      [1,0,0,1,0,0,0,1,0,0,0,1],
+      [1,0,1,1,1,1,0,0,0,0,0,2],
+      [1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    let rat = { x: 1, y: 1 };
+    let enemy = { x: 10, y: 1 };
+
+    function drawMaze() {
+      for (let y = 0; y < maze.length; y++) {
+        for (let x = 0; x < maze[y].length; x++) {
+          if (maze[y][x] === 1) {
+            ctx.fillStyle = "#333"; // paredes
+            ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
+          } else if (maze[y][x] === 2) {
+            ctx.fillStyle = "yellow"; // queso
+            ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
+          }
+        }
+      }
+      // ratón
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(rat.x*tileSize+tileSize/2, rat.y*tileSize+tileSize/2, tileSize/2.5, 0, Math.PI*2);
+      ctx.fill();
+
+      // enemigo
+      ctx.fillStyle = "blue";
+      ctx.beginPath();
+      ctx.arc(enemy.x*tileSize+tileSize/2, enemy.y*tileSize+tileSize/2, tileSize/2.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // BFS para encontrar camino más corto
+    function findPath(start, goal) {
+      let queue = [[start]];
+      let visited = new Set([start.y + "," + start.x]);
+
+      while (queue.length > 0) {
+        let path = queue.shift();
+        let { x, y } = path[path.length - 1];
+
+        if (x === goal.x && y === goal.y) return path;
+
+        let directions = [
+          { x: x+1, y },
+          { x: x-1, y },
+          { x, y+1 },
+          { x, y-1 }
+        ];
+
+        for (let d of directions) {
+          if (maze[d.y][d.x] !== 1 && !visited.has(d.y + "," + d.x)) {
+            visited.add(d.y + "," + d.x);
+            queue.push([...path, d]);
+          }
+        }
+      }
+      return null;
+    }
+
+    let enemyStepCounter = 0; // para que el enemigo no se mueva demasiado rápido
+
+    function moveEnemy() {
+      enemyStepCounter++;
+      if (enemyStepCounter % 15 === 0) { // mueve cada 15 frames
+        let path = findPath(enemy, rat);
+        if (path && path.length > 1) {
+          enemy.x = path[1].x;
+          enemy.y = path[1].y;
+        }
+      }
+    }
+
+    function checkCollision() {
+      if (rat.x === enemy.x && rat.y === enemy.y) {
+        alert("¡Perdiste! El ratón fue atrapado 💀");
+        rat = { x: 1, y: 1 };
+        enemy = { x: 10, y: 1 };
+      }
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawMaze();
+      moveEnemy();
+      checkCollision();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      let newX = rat.x;
+      let newY = rat.y;
+      if (e.key === "ArrowUp") newY--;
+      if (e.key === "ArrowDown") newY++;
+      if (e.key === "ArrowLeft") newX--;
+      if (e.key === "ArrowRight") newX++;
+      if (maze[newY][newX] !== 1) {
+        rat.x = newX;
+        rat.y = newY;
+      }
+      if (maze[rat.y][rat.x] === 2) {
+        alert("¡Ganaste! El ratón encontró su queso 🧀");
+      }
+    });
+
+    gameLoop();
+  </script>
+</body>
+</html>
